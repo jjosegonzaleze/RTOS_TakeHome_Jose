@@ -1,0 +1,12 @@
+# Generated STM32 build files
+Debug/
+Release/
+
+# Python virtual environments and cache
+.venv/
+__pycache__/
+*.pyc
+
+# Local editor/workspace settings
+.idea/
+.metadata/
