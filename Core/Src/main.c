@@ -124,6 +124,12 @@ void StartCommandTask(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/*
+* Calculate CRC-16/CCITT-FALSE over the supplied bytes.
+* Polynomial: 0x1021; initial value: 0xFFFF;
+* no reflection and no final XOR.
+* Frames cover version, type, length, and payload with this CRC.
+*/
 uint16_t CRC16_CCITT(const uint8_t *data, uint16_t length)
 {
     uint16_t crc = 0xFFFF;
@@ -741,7 +747,12 @@ void StartTelemetryTask(void *argument)
 //    }
 //}
 
-/* Diagnostic polling patch. Use interrupt/DMA RX for the final design. */
+/*
+ * Receive command bytes and feed the incremental frame parser.
+ * Successful reads are followed immediately by another receive attempt
+ * to avoid introducing a delay between bytes of the same frame.
+ * Counters and a circular byte trace support receive diagnostics.
+ */
 void StartCommandTask(void *argument)
 {
     uint8_t byte;
