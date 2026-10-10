@@ -1,3 +1,12 @@
+"""Offline resilience tests for the parser used by the live receiver.
+
+Exercises valid frames, corruption, truncation, split reads, and mid-frame
+attachment, plus 1,000 reproducible randomized streams. Recovery is checked
+against subsequent valid frames without restarting the parser within a case.
+Run: python -m unittest -v test_protocol. No connected MCU is required.
+These tests cover the host parser, not firmware interrupt timing.
+"""
+
 import binascii
 import contextlib
 import io

@@ -1,3 +1,9 @@
+"""Live host interface for the STM32 sensor-streaming application.
+
+Selects a serial port, displays CRC-validated readings and status, and sends
+keyboard commands. Keyboard input runs separately from serial processing.
+Framing is shared with the offline tests through protocol.py.
+"""
 import argparse
 import struct
 import threading

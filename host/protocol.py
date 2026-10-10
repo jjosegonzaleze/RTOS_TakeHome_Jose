@@ -1,3 +1,10 @@
+"""Binary framing shared by the live receiver and resilience tests.
+
+Defines the wire constants, CRC-16/CCITT-FALSE, frame construction, and an
+incremental parser that preserves partial frames and resynchronizes after
+invalid headers or CRCs.
+"""
+
 import struct
 
 SYNC = b"\xaa\x55"
