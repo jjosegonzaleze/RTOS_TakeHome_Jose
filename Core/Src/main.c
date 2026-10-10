@@ -2,7 +2,7 @@
 /**
   ******************************************************************************
   * @file           : main.c
-  * @brief          : Main program body
+  * @brief : FreeRTOS sensor sampling, UART telemetry, and host commands
   ******************************************************************************
   * @attention
   *
@@ -15,6 +15,7 @@
   *
   ******************************************************************************
   */
+/* Application sampling, framing, and command handling implemented by Jose. */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -55,7 +56,7 @@ typedef struct
 #define MAX_FRAME_LENGTH     (7 + MAX_PAYLOAD_LENGTH)
 
 #define MIN_SAMPLE_PERIOD_MS 10U
-#define MAX_SAMPLE_PERIOD_MS 60000U
+#define MAX_SAMPLE_PERIOD_MS 1000U
 
 /* USER CODE END PD */
 
