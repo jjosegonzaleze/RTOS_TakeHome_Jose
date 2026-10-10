@@ -41,7 +41,7 @@ def send_command(ser, frame_type, payload=b""):
 def keyboard_worker():
     print("\nCommands:")
     print("  start:       resume sampling")
-    print("  stop:        top sampling")
+    print("  stop:        stop sampling")
     print("  rate 200:    sample every 200 ms")
     print("  status:      request current status")
     print("  quit:        exit program")

@@ -2,6 +2,8 @@
 
 A NUCLEO-F446RE samples an analog input and sends timestamped ADC readings to a Python host. The host displays readings and sends start, stop, sample-period, and status commands.
 
+UART command reception is interrupt-driven. Received bytes pass through a bounded RTOS queue to the command task, which sleeps while waiting for data and performs parsing outside the interrupt.
+
 ## Requirements and wiring
 
 - **Board:** STM32 NUCLEO-F446RE.
@@ -21,7 +23,7 @@ A NUCLEO-F446RE samples an analog input and sends timestamped ADC readings to a 
 4. Connect the board. Create a **STM32 Cortex-M C/C++ Application** debug configuration using ST-LINK and the generated ELF, then launch it to flash the firmware.
 5. Press **Resume** if execution is paused. Leave the MCU running while using the host tool.
 
-Sampling starts automatically at a 100 ms period. Generated build files are recreated by the IDE; no prebuilt firmware is required.
+Sampling starts automatically at a 100 ms period. Generated build files are recreated by the IDE; no prebuilt firmware or CubeMX regeneration is required to build the committed sources.
 
 ## Run the Python host
 
@@ -34,6 +36,8 @@ python -m venv .venv
 .\.venv\Scripts\python.exe receiver.py --list-ports
 .\.venv\Scripts\python.exe receiver.py --port COM5
 ```
+
+If `python` is not found, use `py -3 -m venv .venv` when the Windows Python launcher is installed, or use the full path to your installed Python executable.
 
 Replace **COM5** with the port listed for your board. Close any other application using that port. `requirements.txt` installs `pyserial==3.5`.
 
@@ -55,7 +59,7 @@ The link uses **115200 baud, 8N1, no flow control**. At the receiver's `Command>
 | `status` | Report sampling state and period |
 | `quit` | Exit the host tool |
 
-Commands are case-insensitive. Firmware and host accept integer periods of **10–1,000 ms**. Timestamps are elapsed milliseconds since boot and reset on reboot. Closing the host leaves the powered MCU running; reopen the receiver to resume reception. Missed readings are not replayed.
+Commands are case-insensitive. Firmware and host accept integer periods of **10–1,000 ms**. Timestamps are elapsed milliseconds since boot and reset on reboot. Closing the host leaves the powered MCU running; reopen the receiver to resume reception. Missed readings are not replayed. A small amount of queued telemetry may arrive after STOP.
 
 ## Run the tests
 
@@ -65,6 +69,8 @@ From `host/`:
 .\.venv\Scripts\python.exe -m unittest -v test_protocol
 ```
 
-Expected result: **12 tests, OK**, including 1,000 repeatable fuzz cases. No board connection is needed. Tests check host-parser recovery from corruption, truncation, and attaching mid-frame.
+Expected result: **12 tests, OK**, including 1,000 repeatable fuzz cases. No board connection is needed. Tests check host-parser recovery from corruption, truncation, and attaching mid-frame; they do not test MCU interrupt timing.
 
 For clean-clone verification, follow the steps above from a fresh clone, then check `stop`, `status`, `start`, and `rate 200`. Close and reopen the receiver while the board stays powered and confirm readings and commands resume.
+
+For an optional firmware diagnostic check, run these commands without breakpoints, close the host, then suspend the MCU and inspect `uart_rx_queue_overflows`, `uart_rx_errors`, and `uart_rx_rearm_failures`. All should remain **0** during normal operation.

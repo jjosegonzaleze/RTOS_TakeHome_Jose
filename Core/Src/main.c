@@ -25,6 +25,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
+#include "FreeRTOS.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,6 +36,12 @@ typedef struct
     uint16_t value;
     uint32_t sequence;
 } SensorSample;
+/* One received byte plus a generation marker for detecting receive gaps. */
+typedef struct
+{
+    uint32_t generation;
+    uint8_t byte;
+} CommandRxByte;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -54,6 +61,8 @@ typedef struct
 
 #define MAX_PAYLOAD_LENGTH   32
 #define MAX_FRAME_LENGTH     (7 + MAX_PAYLOAD_LENGTH)
+
+#define COMMAND_RX_QUEUE_LENGTH 128U
 
 #define MIN_SAMPLE_PERIOD_MS 10U
 #define MAX_SAMPLE_PERIOD_MS 1000U
@@ -104,6 +113,9 @@ volatile uint8_t sampling_enabled = 1;
 volatile uint32_t sample_period_ms = 100;
 osMessageQueueId_t sensorQueueHandle;
 osMutexId_t uartTxMutexHandle;
+static osMessageQueueId_t commandRxQueueHandle;
+static uint8_t uartRxByte;
+static volatile uint32_t uartRxGeneration = 0;
 
 /* USER CODE END PV */
 
@@ -118,6 +130,7 @@ void StartSecondTask(void *argument);
 
 void StartTelemetryTask(void *argument);
 void StartCommandTask(void *argument);
+void CommandUartIRQHandler(void);
 
 
 /* USER CODE END PFP */
@@ -157,9 +170,9 @@ uint16_t CRC16_CCITT(const uint8_t *data, uint16_t length)
 
 /* Diagnostics: inspect RAM variables; do not watch USART2->DR. */
 volatile uint32_t uart_rx_bytes = 0;
-volatile uint32_t uart_rx_timeouts = 0;
+volatile uint32_t uart_rx_queue_overflows = 0;
+volatile uint32_t uart_rx_rearm_failures = 0;
 volatile uint32_t uart_rx_errors = 0;
-volatile uint32_t uart_rx_busy = 0;
 volatile uint32_t uart_rx_ore_observed = 0;
 volatile uint32_t uart_rx_last_error = 0;
 volatile uint32_t command_frames_valid = 0;
@@ -427,6 +440,13 @@ int main(void)
   /* USER CODE BEGIN RTOS_QUEUES */
 
   sensorQueueHandle = osMessageQueueNew(16, sizeof(SensorSample), NULL);
+  commandRxQueueHandle = osMessageQueueNew(COMMAND_RX_QUEUE_LENGTH,
+                                         sizeof(CommandRxByte), NULL);
+  if (sensorQueueHandle == NULL || commandRxQueueHandle == NULL ||
+      uartTxMutexHandle == NULL)
+  {
+      Error_Handler();
+  }
 
   /* USER CODE END RTOS_QUEUES */
 
@@ -732,60 +752,113 @@ void StartTelemetryTask(void *argument)
         }
 }
 
-//void StartCommandTask(void *argument)
-//{
-//    uint8_t byte;
-//
-//    for(;;)
-//    {
-//        if (HAL_UART_Receive(&huart2, &byte, 1, 10) == HAL_OK)
-//        {
-//            CommandParserFeed(byte);
-//        }
-//
-//        osDelay(1);
-//    }
-//}
+/*
+ * Arm a single-byte interrupt receive. Called only from the USART2 IRQ,
+ * or from the command task while interrupts are briefly masked.
+ */
+static void CommandRxArm(void)
+{
+    if (huart2.RxState == HAL_UART_STATE_READY)
+    {
+        if (HAL_UART_Receive_IT(&huart2, &uartRxByte, 1) != HAL_OK)
+        {
+            uart_rx_rearm_failures++;
+        }
+    }
+}
 
 /*
- * Receive command bytes and feed the incremental frame parser.
- * Successful reads are followed immediately by another receive attempt
- * to avoid introducing a delay between bytes of the same frame.
- * Counters and a circular byte trace support receive diagnostics.
+ * ISR callback: copy valid bytes into a bounded RTOS queue.
+ * No parsing, transmitting, sleeping, or waiting is performed here.
+ * Rearming is deferred until HAL_UART_IRQHandler has fully returned,
+ * so HAL's error path cannot cancel a receive armed inside a callback.
  */
-void StartCommandTask(void *argument)
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-    uint8_t byte;
-
-    for (;;)
+    if (huart->Instance != USART2 ||
+        HAL_UART_GetError(huart) != HAL_UART_ERROR_NONE)
     {
-        /* Capture ORE before HAL may clear it. This is an observation count,
-           not a count of lost bytes; errors occurring inside HAL may be missed. */
-        if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_ORE) != RESET)
+        return;
+    }
+
+    CommandRxByte item = {uartRxGeneration, uartRxByte};
+    uart_rx_trace[uart_rx_bytes % sizeof(uart_rx_trace)] = item.byte;
+    uart_rx_bytes++;
+
+    /* CMSIS-RTOS2 selects the FreeRTOS FromISR API; timeout must be zero. */
+    if (osMessageQueuePut(commandRxQueueHandle, &item, 0, 0) != osOK)
+    {
+        uart_rx_queue_overflows++;
+        uartRxGeneration++;
+    }
+}
+
+/* Record a receive gap; the task discards partial framing across that gap. */
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == USART2)
+    {
+        uint32_t error = HAL_UART_GetError(huart);
+        uart_rx_errors++;
+        uart_rx_last_error = error;
+        if ((error & HAL_UART_ERROR_ORE) != 0U)
         {
             uart_rx_ore_observed++;
         }
+        uartRxGeneration++;
+    }
+}
 
-        HAL_StatusTypeDef rxStatus = HAL_UART_Receive(&huart2, &byte, 1, 10);
-        uint32_t errorCode = HAL_UART_GetError(&huart2);
-        if (errorCode != HAL_UART_ERROR_NONE)
-        {
-            uart_rx_last_error = errorCode;
-        }
+/* Called by USART2_IRQHandler in stm32f4xx_it.c. */
+void CommandUartIRQHandler(void)
+{
+    HAL_UART_IRQHandler(&huart2);
+    CommandRxArm();
+}
 
-        if (rxStatus == HAL_OK)
+/*
+ * Receive commands through an interrupt-fed queue. Waiting on the queue
+ * blocks this task and releases the CPU. Parsing and status transmission
+ * stay in task context. A generation change resets only partial framing.
+ */
+void StartCommandTask(void *argument)
+{
+    CommandRxByte item;
+    uint32_t parserGeneration = 0;
+
+    /* This priority is allowed to call FreeRTOS APIs from an interrupt. */
+    HAL_NVIC_SetPriority(USART2_IRQn,
+                         configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY, 0);
+    HAL_NVIC_EnableIRQ(USART2_IRQn);
+
+    for (;;)
+    {
+        /* Recover a stopped receive (including an unsuccessful rearm).
+         * This short critical section protects HAL state from the ISR;
+         * HAL_UART_Receive_IT does not wait for a byte.
+         */
+        uint32_t interruptMask = __get_PRIMASK();
+        __disable_irq();
+        CommandRxArm();
+        __set_PRIMASK(interruptMask);
+
+        /* 100 RTOS ticks = 100 ms here. This is a sleeping queue wait,
+         * not hardware polling; the timeout permits a recovery retry.
+         */
+        osStatus_t status = osMessageQueueGet(commandRxQueueHandle, &item,
+                                              NULL, 100);
+        if (status == osOK)
         {
-            uart_rx_trace[uart_rx_bytes % sizeof(uart_rx_trace)] = byte;
-            uart_rx_bytes++;
-            CommandParserFeed(byte);
-            /* Immediately receive the next byte; do not sleep here. */
+            if (item.generation != parserGeneration)
+            {
+                commandRxLength = 0;
+                parserGeneration = item.generation;
+            }
+            CommandParserFeed(item.byte);
         }
-        else
+        else if (status != osErrorTimeout)
         {
-            if (rxStatus == HAL_TIMEOUT) uart_rx_timeouts++;
-            else if (rxStatus == HAL_ERROR) uart_rx_errors++;
-            else if (rxStatus == HAL_BUSY) uart_rx_busy++;
-            osDelay(1);
+            Error_Handler();
         }
     }
 }

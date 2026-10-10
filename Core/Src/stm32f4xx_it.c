@@ -46,6 +46,7 @@
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
+extern void CommandUartIRQHandler(void);
 
 /* USER CODE END PFP */
 
@@ -185,6 +186,12 @@ void TIM6_DAC_IRQHandler(void)
   /* USER CODE BEGIN TIM6_DAC_IRQn 1 */
 
   /* USER CODE END TIM6_DAC_IRQn 1 */
+}
+
+/* USART2 receive interrupts: HAL servicing and rearming run in ISR context. */
+void USART2_IRQHandler(void)
+{
+    CommandUartIRQHandler();
 }
 
 /* USER CODE BEGIN 1 */
