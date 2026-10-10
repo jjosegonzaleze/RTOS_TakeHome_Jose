@@ -15,7 +15,7 @@
   *
   ******************************************************************************
   */
-/* Application sampling, framing, and command handling implemented by Jose. */
+/* Application sampling, framing, and command handling implemented by Jose Gonzalez. */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
