@@ -11,7 +11,7 @@ A NUCLEO-F446RE samples an analog input and sends timestamped ADC readings to a 
 - Connect the analog sensor output to **PA4 / ADC1_IN4**, with a common ground and a signal within the board's supported ADC input range. Readings are raw 12-bit ADC counts.
 - On Windows, install the ST-LINK USB driver if the virtual COM port is missing.
 
-![NUCLEO-F446RE pinout](docs/nucleo-f446re-pinout.png)
+![NUCLEO-F446RE pinout](docs/nucleo_f446re_pinout.png)
 
 ## Build and run the firmware
 
