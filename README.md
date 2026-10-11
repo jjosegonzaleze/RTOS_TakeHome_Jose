@@ -23,7 +23,7 @@ UART command reception is interrupt-driven. Received bytes pass through a bounde
 4. Connect the board's ST-LINK USB connector to the PC.
 5. With the project selected, use **Run** to flash and start the application. If prompted, select **STM32 Cortex-M C/C++ Application** and ST-LINK. 
 
-Sampling starts automatically at a 100 ms period. Keep the board powered and running while using the host tool. Generated build files are recreated by the IDE; no prebuilt firmware or CubeMX regeneration is required to build the committed sources.
+Sampling starts automatically at a 100 ms period. Keep the board powered and running while using the host tool. Generated build files are recreated by the IDE. 
 
 ## Run the Python host
 
