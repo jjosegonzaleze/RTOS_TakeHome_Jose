@@ -19,11 +19,13 @@ UART command reception is interrupt-driven. Received bytes pass through a bounde
 
 1. Clone this repository and open STM32CubeIDE with a fresh workspace.
 2. Select **File → Import → General → Existing Projects into Workspace** and import `RTOS_TakeHome_Jose` from the cloned repository.
-3. Select the **Debug** configuration and build the project. The output is `Debug/RTOS_TakeHome_Jose.elf`.
-4. Connect the board. Create a **STM32 Cortex-M C/C++ Application** debug configuration using ST-LINK and the generated ELF, then launch it to flash the firmware.
-5. Press **Resume** if execution is paused. Leave the MCU running while using the host tool.
+3. Select the imported project and choose **Project → Build Project**. The default configuration produces `Debug/RTOS_TakeHome_Jose.elf`; the folder name does not mean a debug session is required.
+4. Connect the board's ST-LINK USB connector to the PC.
+5. With the project selected, use **Run** to flash and start the application. If prompted, select **STM32 Cortex-M C/C++ Application** and ST-LINK. The project's launch settings select the built executable automatically.
 
-Sampling starts automatically at a 100 ms period. Generated build files are recreated by the IDE; no prebuilt firmware or CubeMX regeneration is required to build the committed sources.
+Sampling starts automatically at a 100 ms period. Keep the board powered and running while using the host tool. Generated build files are recreated by the IDE; no prebuilt firmware or CubeMX regeneration is required to build the committed sources.
+
+**Debug mode is optional:** use it to inspect variables or diagnose problems. If you launch a debug session and execution pauses, press **Resume** before using the host tool.
 
 ## Run the Python host
 
