@@ -25,8 +25,6 @@ UART command reception is interrupt-driven. Received bytes pass through a bounde
 
 Sampling starts automatically at a 100 ms period. Keep the board powered and running while using the host tool. Generated build files are recreated by the IDE; no prebuilt firmware or CubeMX regeneration is required to build the committed sources.
 
-**Debug mode is optional:** use it to inspect variables or diagnose problems. If you launch a debug session and execution pauses, press **Resume** before using the host tool.
-
 ## Run the Python host
 
 The Python files are in `host/`. From the repository root, run these commands in Windows PowerShell:
@@ -38,8 +36,6 @@ python -m venv .venv
 .\.venv\Scripts\python.exe receiver.py --list-ports
 .\.venv\Scripts\python.exe receiver.py --port COM5
 ```
-
-If `python` is not found, use `py -3 -m venv .venv` when the Windows Python launcher is installed, or use the full path to your installed Python executable.
 
 Replace **COM5** with the port listed for your board. Close any other application using that port. `requirements.txt` installs `pyserial==3.5`.
 
@@ -61,7 +57,7 @@ The link uses **115200 baud, 8N1, no flow control**. At the receiver's `Command>
 | `status` | Report sampling state and period |
 | `quit` | Exit the host tool |
 
-Commands are case-insensitive. Firmware and host accept integer periods of **10–1,000 ms**. Timestamps are elapsed milliseconds since boot and reset on reboot. Closing the host leaves the powered MCU running; reopen the receiver to resume reception. Missed readings are not replayed. A small amount of queued telemetry may arrive after STOP.
+Commands are case-insensitive. Firmware and host accept integer periods of **10–1,000 ms**. Timestamps are elapsed milliseconds since boot and reset on reboot. Closing the host leaves the powered MCU running; reopen the receiver to resume reception. Missed readings are not replayed. 
 
 ## Run the tests
 
