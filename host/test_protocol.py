@@ -22,11 +22,13 @@ from receiver import process_frame
 
 
 def sensor(sequence):
+    """Build a synthetic sensor frame with predictable payload values."""
     return build_frame(FRAME_TYPE_SENSOR, struct.pack("<IIH", sequence, sequence * 200, 1986))
 
 
 class ProtocolTests(unittest.TestCase):
     def setUp(self):
+        """Create a fresh parser, a sample frame, and known recovery frames."""
         self.received = []
         self.parser = FrameParser(self.received.append)
         self.frame = sensor(1)
@@ -34,6 +36,7 @@ class ProtocolTests(unittest.TestCase):
         self.recovery = [sensor(i) for i in range(100, 104)]
 
     def feed_chunks(self, data, rng):
+        """Feed random-sized chunks and check the retained parser buffer bound."""
         pos = 0
         while pos < len(data):
             size = rng.randint(1, 23)
@@ -42,22 +45,28 @@ class ProtocolTests(unittest.TestCase):
             pos += size
 
     def check_recovery(self, damaged, seed=0):
+        """Verify recovery frames are decoded after damage without restarting."""
         self.received = []
         self.parser = FrameParser(self.received.append)
         self.feed_chunks(damaged + b"".join(self.recovery), random.Random(seed))
+        # Earlier input may contain an intact valid frame; the recovery suffix
+        # must always be delivered exactly and in order.
         self.assertEqual(self.received[-4:], self.recovery)
         self.assertEqual(self.parser.buffer, bytearray())
+        # Check accepted CRCs with an independent standard-library implementation.
         for frame in self.received:
             self.assertEqual(struct.unpack("<H", frame[-2:])[0],
                              binascii.crc_hqx(frame[2:-2], 0xffff))
 
     def test_known_crc_and_stop(self):
+        """Check known CRC/frame bytes and rejection of oversized payloads."""
         self.assertEqual(crc16_ccitt(b"123456789"), 0x29b1)
         self.assertEqual(build_frame(CMD_STOP), bytes.fromhex("aa 55 01 11 00 ee cb"))
         with self.assertRaises(ValueError):
             build_frame(1, bytes(33))
 
     def test_every_split_point(self):
+        """Verify a valid frame survives every possible two-chunk split."""
         for split in range(len(self.frame) + 1):
             with self.subTest(split=split):
                 received = []
@@ -67,11 +76,13 @@ class ProtocolTests(unittest.TestCase):
                 self.assertEqual(received, [self.frame])
 
     def test_byte_at_a_time_and_back_to_back(self):
+        """Decode three consecutive frames delivered one byte at a time."""
         for byte in self.frame * 3:
             self.parser.feed(bytes([byte]))
         self.assertEqual(self.received, [self.frame] * 3)
 
     def test_corrupted_crc_is_rejected(self):
+        """Reject a damaged CRC, count the failure, and decode recovery frames."""
         damaged = bytearray(self.frame)
         damaged[-1] ^= 1
         self.check_recovery(bytes(damaged))
@@ -79,6 +90,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertGreater(self.parser.crc_errors, 0)
 
     def test_all_single_bit_corruptions(self):
+        """Reject all 136 single-bit mutations and recover subsequent frames."""
         for position in range(len(self.frame)):
             for bit in range(8):
                 with self.subTest(position=position, bit=bit):
@@ -88,18 +100,21 @@ class ProtocolTests(unittest.TestCase):
                     self.assertEqual(self.received, self.recovery)
 
     def test_every_truncation(self):
+        """Recover when any incomplete frame prefix precedes valid traffic."""
         for cut in range(len(self.frame)):
             with self.subTest(cut=cut):
                 self.check_recovery(self.frame[:cut])
                 self.assertEqual(self.received, self.recovery)
 
     def test_attach_at_every_offset(self):
+        """Recover when reception begins at any position inside a frame."""
         for offset in range(1, len(self.frame)):
             with self.subTest(offset=offset):
                 self.check_recovery(self.frame[offset:])
                 self.assertEqual(self.received, self.recovery)
 
     def test_invalid_and_plausible_lengths(self):
+        """Recover after each incorrect length, including plausible bounded values."""
         for length in range(256):
             if length == 10:
                 continue
@@ -110,20 +125,28 @@ class ProtocolTests(unittest.TestCase):
                 self.assertEqual(self.received, self.recovery)
 
     def test_each_byte_deleted_or_inserted(self):
+        """Check recovery after a byte is deleted or FF is inserted at each position."""
         for position in range(len(self.frame)):
             with self.subTest(deleted=position):
                 self.check_recovery(self.frame[:position] + self.frame[position + 1:])
                 self.assertEqual(self.received, self.recovery)
+        # Insertion before or after the frame can leave it valid, so these cases
+        # require recovery without requiring rejection of the original frame.
         for position in range(len(self.frame) + 1):
             with self.subTest(inserted=position):
                 self.check_recovery(self.frame[:position] + b"\xff" + self.frame[position:])
 
     def test_sync_inside_valid_payload_and_maximum_length(self):
+        """Accept embedded sync bytes, a maximum payload, and an empty payload."""
+        # Framing accepts any type/payload combination with a valid CRC;
+        # application-specific payload validation belongs to the receiver.
         frames = [build_frame(1, b"\xaa\x55" * 16), build_frame(2), self.frame]
         self.parser.feed(b"\x00\xaa" + b"".join(frames))
         self.assertEqual(self.received, frames)
 
     def test_seeded_fuzz_1000_streams(self):
+        """Check recovery from 1,000 reproducible mutations with noise and chunking."""
+        # A fixed seed reproduces the same mutations and noise on each run.
         rng = random.Random(446)
         for trial in range(1000):
             damaged = bytearray(self.frame)
@@ -135,14 +158,17 @@ class ProtocolTests(unittest.TestCase):
                 elif action == 1 and position < len(damaged):
                     del damaged[position]
                 else:
+                    # Also insert when a flip/delete chooses the end position.
                     damaged[position:position] = bytes([rng.randrange(256)])
             noise = bytes(rng.randrange(256) for _ in range(rng.randrange(80)))
             with self.subTest(trial=trial):
                 self.check_recovery(noise + bytes(damaged), seed=trial)
 
     def test_live_display_decodes_sensor_and_status(self):
+        """Verify accepted sensor and status frames produce the expected display."""
         parser = FrameParser(process_frame)
         output = io.StringIO()
+        # Capture live display output without opening a serial port.
         with contextlib.redirect_stdout(output):
             parser.feed(self.frame)
             parser.feed(build_frame(FRAME_TYPE_STATUS, struct.pack("<BI", 0, 200)))
