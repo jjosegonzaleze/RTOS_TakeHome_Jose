@@ -69,6 +69,6 @@ From `host/`:
 
 Expected result: **12 tests, OK**, including 1,000 repeatable fuzz cases. No board connection is needed. Tests check host-parser recovery from corruption, truncation, and attaching mid-frame; they do not test MCU interrupt timing.
 
-For clean-clone verification, follow the steps above from a fresh clone, then check `stop`, `status`, `start`, and `rate 200`. Close and reopen the receiver while the board stays powered and confirm readings and commands resume.
+For clean-clone verification, follow the steps above from a fresh clone, then check `stop`, `status`, `start`, and `rate x`. Close and reopen the receiver while the board stays powered and confirm readings and commands resume.
 
 For an optional firmware diagnostic check, run these commands without breakpoints, close the host, then suspend the MCU and inspect `uart_rx_queue_overflows`, `uart_rx_errors`, and `uart_rx_rearm_failures`. All should remain **0** during normal operation.
