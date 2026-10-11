@@ -842,9 +842,6 @@ void StartCommandTask(void *argument)
         CommandRxArm();
         __set_PRIMASK(interruptMask);
 
-        /* 100 RTOS ticks = 100 ms here. This is a sleeping queue wait,
-         * not hardware polling; the timeout permits a recovery retry.
-         */
         osStatus_t status = osMessageQueueGet(commandRxQueueHandle, &item,
                                               NULL, 100);
         if (status == osOK)
