@@ -53,7 +53,7 @@ The link uses **115200 baud, 8N1, no flow control**. At the receiver's `Command>
 | --- | --- |
 | `start` | Resume sampling |
 | `stop` | Stop sampling |
-| `rate 200` | Set the sample period to 200 ms |
+| `rate x` | Set the sample period to x ms |
 | `status` | Report sampling state and period |
 | `quit` | Exit the host tool |
 
